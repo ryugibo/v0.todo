@@ -234,12 +234,15 @@ export default function TodoApp() {
     if (!sourceListId || !destinationListId) return
 
     try {
+      let shouldReload = false
+
       if (sourceListId !== destinationListId) {
         // 다른 리스트로 이동
         const destinationTodos = todosByList[destinationListId] || []
         const newOrderIndex = destinationTodos.length // 맨 뒤에 추가
 
         await todoOperations.moveTodo(activeId, destinationListId, newOrderIndex)
+        shouldReload = true
       } else {
         // 같은 리스트 내에서 순서 변경
         const todos = todosByList[sourceListId]
@@ -252,14 +255,16 @@ export default function TodoApp() {
           reorderedTodos.splice(newIndex, 0, removed)
 
           await todoOperations.reorderTodos(reorderedTodos)
+          shouldReload = true
         }
       }
 
-      // 데이터 다시 로드하여 일관성 보장
-      await loadData()
+      if (shouldReload) {
+        await loadData()
+      }
     } catch (error) {
       console.error("Error handling drag end:", error)
-      // 에러 발생 시 데이터 다시 로드
+      // 에러 발생 시에만 데이터 다시 로드
       await loadData()
     }
   }

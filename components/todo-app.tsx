@@ -223,7 +223,7 @@ export default function TodoApp() {
     if (sourceListId === destinationListId) return
 
     const sourceTodos = todosByList[sourceListId]
-    const destinationTodos = todosByList[destinationListId]
+    const destinationTodos = todosByList[destinationListId] || []
     const todoToMove = sourceTodos.find((todo) => todo.id === activeId)
 
     if (!todoToMove) return

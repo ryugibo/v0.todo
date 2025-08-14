@@ -139,12 +139,17 @@ export const listOperations = {
 
   // 리스트 삭제
   async deleteList(id: string): Promise<void> {
-    // 먼저 해당 리스트의 모든 투두 삭제
-    const { error: todosError } = await supabase.from("todos").delete().eq("list_id", id)
+    try {
+      // 먼저 해당 리스트의 모든 투두 삭제 (list_id 컬럼이 있는 경우에만)
+      const { error: todosError } = await supabase.from("todos").delete().eq("list_id", id)
 
-    if (todosError) {
-      console.error("Error deleting todos:", todosError)
-      throw todosError
+      if (todosError && !todosError.message.includes("column")) {
+        console.error("Error deleting todos:", todosError)
+        throw todosError
+      }
+    } catch (error) {
+      // list_id 컬럼이 없는 경우 무시
+      console.warn("Could not delete todos by list_id, column may not exist")
     }
 
     // 리스트 삭제
@@ -184,9 +189,17 @@ export const listOperations = {
     try {
       let query = supabase.from("todos").select("*")
 
-      // list_id 컬럼이 있는 경우에만 필터링
-      if (listId !== "default") {
-        query = query.eq("list_id", listId)
+      try {
+        // list_id 컬럼이 있는 경우에만 필터링
+        if (listId !== "default") {
+          query = query.eq("list_id", listId)
+        } else {
+          // 기본 리스트의 경우 list_id가 null이거나 "default"인 것들
+          query = query.or(`list_id.is.null,list_id.eq.${listId}`)
+        }
+      } catch (error) {
+        // list_id 컬럼이 없는 경우 모든 투두 반환
+        console.warn("list_id column not found, returning all todos")
       }
 
       // order_index가 있으면 사용, 없으면 created_at 사용
@@ -213,7 +226,6 @@ export const listOperations = {
   // 모든 리스트의 투두들 조회
   async getAllTodos(): Promise<Record<string, Todo[]>> {
     try {
-      // 먼저 list_id 컬럼이 있는지 확인
       const { data, error } = await supabase.from("todos").select("*").order("created_at", { ascending: true })
 
       if (error) {
@@ -236,6 +248,19 @@ export const listOperations = {
       return todosByList
     } catch (error) {
       console.error("Error in getAllTodos:", error)
+      if (error instanceof Error && error.message.includes("column")) {
+        // 스키마가 업데이트되지 않은 경우 기본 처리
+        try {
+          const { data } = await supabase
+            .from("todos")
+            .select("id, text, completed, created_at, updated_at, user_id")
+            .order("created_at", { ascending: true })
+          return { default: data || [] }
+        } catch (fallbackError) {
+          console.error("Fallback query also failed:", fallbackError)
+          return {}
+        }
+      }
       return {}
     }
   },

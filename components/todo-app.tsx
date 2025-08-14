@@ -110,24 +110,15 @@ export default function TodoApp() {
     const activeId = active.id as string
     const overId = over.id as string
 
-    // Only handle todo drag over list
+    // Only handle todo drag over list for visual feedback
     if (activeItem.type === "todo") {
       const sourceListId = (activeItem.item as Todo).list_id || "default"
       const targetListId = lists.find((l) => l.id === overId)?.id
 
+      // Only provide visual feedback, don't actually move the item yet
       if (targetListId && sourceListId !== targetListId) {
-        // Move todo to different list temporarily for visual feedback
-        const sourceTodos = todosByList[sourceListId] || []
-        const targetTodos = todosByList[targetListId] || []
-        const todoToMove = sourceTodos.find((t) => t.id === activeId)
-
-        if (todoToMove) {
-          setTodosByList({
-            ...todosByList,
-            [sourceListId]: sourceTodos.filter((t) => t.id !== activeId),
-            [targetListId]: [...targetTodos, { ...todoToMove, list_id: targetListId }],
-          })
-        }
+        // Visual feedback will be handled by DragOverlay
+        return
       }
     }
   }
@@ -168,17 +159,11 @@ export default function TodoApp() {
           const targetTodos = todosByList[targetList.id] || []
           await todoOperations.moveTodo(todo.id, targetList.id, targetTodos.length)
 
-          // Update local state
-          const newTodosByList = { ...todosByList }
-          newTodosByList[sourceListId] = newTodosByList[sourceListId].filter((t) => t.id !== todo.id)
-          newTodosByList[targetList.id] = [
-            ...(newTodosByList[targetList.id] || []),
-            { ...todo, list_id: targetList.id },
-          ]
-          setTodosByList(newTodosByList)
+          // Reload data to ensure consistency
+          await loadData()
         } catch (error) {
           console.error("Error moving todo:", error)
-          loadData() // Restore on error
+          await loadData() // Restore on error
         }
       } else {
         // Handle reordering within the same list
@@ -189,22 +174,22 @@ export default function TodoApp() {
           const listTodos = todosByList[sourceListId] || []
           const oldIndex = listTodos.findIndex((t) => t.id === activeId)
           const newIndex = listTodos.findIndex((t) => t.id === overId)
-          const reorderedTodos = arrayMove(listTodos, oldIndex, newIndex)
 
-          setTodosByList({
-            ...todosByList,
-            [sourceListId]: reorderedTodos,
-          })
+          if (oldIndex !== -1 && newIndex !== -1) {
+            const reorderedTodos = arrayMove(listTodos, oldIndex, newIndex)
 
-          try {
-            await todoOperations.reorderTodos(reorderedTodos)
-          } catch (error) {
-            console.error("Error reordering todos:", error)
-            loadData() // Restore on error
+            setTodosByList({
+              ...todosByList,
+              [sourceListId]: reorderedTodos,
+            })
+
+            try {
+              await todoOperations.reorderTodos(reorderedTodos)
+            } catch (error) {
+              console.error("Error reordering todos:", error)
+              await loadData() // Restore on error
+            }
           }
-        } else {
-          // Restore original state if no valid drop
-          loadData()
         }
       }
     }

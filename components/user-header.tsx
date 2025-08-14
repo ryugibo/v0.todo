@@ -1,11 +1,34 @@
+"use client"
+
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { LogOut, User } from "lucide-react"
+import { LogOut, User, Loader2 } from "lucide-react"
 import { signout } from "@/lib/auth-actions"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
+import { useFormStatus } from "react-dom"
 
 interface UserHeaderProps {
   user: SupabaseUser
+}
+
+function LogoutButton() {
+  const { pending } = useFormStatus()
+
+  return (
+    <Button variant="ghost" size="sm" className="text-gray-600 hover:text-red-600" disabled={pending}>
+      {pending ? (
+        <>
+          <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+          로그아웃 중...
+        </>
+      ) : (
+        <>
+          <LogOut className="w-4 h-4 mr-1" />
+          로그아웃
+        </>
+      )}
+    </Button>
+  )
 }
 
 export default function UserHeader({ user }: UserHeaderProps) {
@@ -23,10 +46,7 @@ export default function UserHeader({ user }: UserHeaderProps) {
             </div>
           </div>
           <form action={signout}>
-            <Button variant="ghost" size="sm" className="text-gray-600 hover:text-red-600">
-              <LogOut className="w-4 h-4 mr-1" />
-              로그아웃
-            </Button>
+            <LogoutButton />
           </form>
         </div>
       </Card>

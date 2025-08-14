@@ -41,6 +41,7 @@ export default function TodoApp() {
   const [isAddListDialogOpen, setIsAddListDialogOpen] = useState(false)
   const [isEditListDialogOpen, setIsEditListDialogOpen] = useState(false)
   const [activeItem, setActiveItem] = useState<{ type: "todo" | "list"; item: Todo | TodoList } | null>(null)
+  const [schemaError, setSchemaError] = useState<string | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -60,12 +61,23 @@ export default function TodoApp() {
   const loadData = async () => {
     try {
       setLoading(true)
+      setSchemaError(null)
+
+      const defaultList = await listOperations.ensureDefaultList()
+
       const [listsData, todosData] = await Promise.all([listOperations.getLists(), listOperations.getAllTodos()])
 
-      setLists(listsData)
+      const finalLists = listsData.length > 0 ? listsData : [defaultList]
+
+      setLists(finalLists)
       setTodosByList(todosData)
     } catch (error) {
       console.error("Error loading data:", error)
+      if (error instanceof Error && error.message.includes("column")) {
+        setSchemaError(
+          "데이터베이스 스키마를 업데이트해야 합니다. 프로젝트 설정에서 마이그레이션 스크립트를 실행해주세요.",
+        )
+      }
     } finally {
       setLoading(false)
     }
@@ -100,7 +112,7 @@ export default function TodoApp() {
 
     // Only handle todo drag over list
     if (activeItem.type === "todo") {
-      const sourceListId = (activeItem.item as Todo).list_id
+      const sourceListId = (activeItem.item as Todo).list_id || "default"
       const targetListId = lists.find((l) => l.id === overId)?.id
 
       if (targetListId && sourceListId !== targetListId) {
@@ -146,7 +158,7 @@ export default function TodoApp() {
       }
     } else if (activeItem.type === "todo") {
       const todo = activeItem.item as Todo
-      const sourceListId = todo.list_id
+      const sourceListId = todo.list_id || "default"
 
       // Check if dropped on a list (different from source)
       const targetList = lists.find((l) => l.id === overId)
@@ -173,7 +185,7 @@ export default function TodoApp() {
         const targetTodo = Object.values(todosByList)
           .flat()
           .find((t) => t.id === overId)
-        if (targetTodo && targetTodo.list_id === sourceListId && activeId !== overId) {
+        if (targetTodo && (targetTodo.list_id || "default") === sourceListId && activeId !== overId) {
           const listTodos = todosByList[sourceListId] || []
           const oldIndex = listTodos.findIndex((t) => t.id === activeId)
           const newIndex = listTodos.findIndex((t) => t.id === overId)
@@ -295,6 +307,26 @@ export default function TodoApp() {
             <CardContent className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin mr-2" />
               <span>할일 목록을 불러오는 중...</span>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
+  if (schemaError) {
+    return (
+      <div className="p-4">
+        <div className="max-w-6xl mx-auto">
+          <Card className="shadow-lg border-destructive">
+            <CardContent className="text-center py-8">
+              <div className="text-destructive mb-4">
+                <h2 className="text-lg font-semibold mb-2">데이터베이스 업데이트 필요</h2>
+                <p className="text-sm">{schemaError}</p>
+              </div>
+              <Button onClick={loadData} variant="outline">
+                다시 시도
+              </Button>
             </CardContent>
           </Card>
         </div>

@@ -215,15 +215,19 @@ export default function TodoApp() {
       const newIndex = lists.findIndex((list) => list.id === overId)
 
       if (oldIndex !== newIndex && oldIndex !== -1 && newIndex !== -1) {
-        try {
-          const reorderedLists = [...lists]
-          const [removed] = reorderedLists.splice(oldIndex, 1)
-          reorderedLists.splice(newIndex, 0, removed)
+        const reorderedLists = [...lists]
+        const [removed] = reorderedLists.splice(oldIndex, 1)
+        reorderedLists.splice(newIndex, 0, removed)
 
+        // 즉시 UI 업데이트
+        setLists(reorderedLists)
+
+        try {
+          // 백그라운드에서 데이터베이스 업데이트
           await listOperations.reorderLists(reorderedLists)
-          await loadData()
         } catch (error) {
           console.error("Error reordering lists:", error)
+          // 에러 발생 시에만 데이터 다시 로드
           await loadData()
         }
       }

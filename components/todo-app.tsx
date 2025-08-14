@@ -21,9 +21,10 @@ import {
   useSensors,
   closestCorners,
 } from "@dnd-kit/core"
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
+import { SortableContext, verticalListSortingStrategy, rectSortingStrategy } from "@dnd-kit/sortable"
 import { SortableTodo } from "@/components/dnd/sortable-todo"
 import { DroppableList } from "@/components/dnd/droppable-list"
+import { SortableList } from "@/components/dnd/sortable-list"
 
 export default function TodoApp() {
   const [lists, setLists] = useState<TodoList[]>([])
@@ -206,10 +207,33 @@ export default function TodoApp() {
     const activeId = active.id as string
     const overId = over.id as string
 
+    // 리스트 순서 변경인지 확인
+    const isListDrag = lists.some((list) => list.id === activeId)
+
+    if (isListDrag) {
+      const oldIndex = lists.findIndex((list) => list.id === activeId)
+      const newIndex = lists.findIndex((list) => list.id === overId)
+
+      if (oldIndex !== newIndex && oldIndex !== -1 && newIndex !== -1) {
+        try {
+          const reorderedLists = [...lists]
+          const [removed] = reorderedLists.splice(oldIndex, 1)
+          reorderedLists.splice(newIndex, 0, removed)
+
+          await listOperations.reorderLists(reorderedLists)
+          await loadData()
+        } catch (error) {
+          console.error("Error reordering lists:", error)
+          await loadData()
+        }
+      }
+      return
+    }
+
+    // 기존 투두 드래그 앤 드롭 로직
     let sourceListId = ""
     let destinationListId = ""
 
-    // 소스 리스트 찾기
     for (const listId in todosByList) {
       if (todosByList[listId].some((todo) => todo.id === activeId)) {
         sourceListId = listId
@@ -217,7 +241,6 @@ export default function TodoApp() {
       }
     }
 
-    // 목적지 리스트 찾기
     if (lists.some((list) => list.id === overId)) {
       // 리스트 자체에 드롭한 경우
       destinationListId = overId
@@ -332,105 +355,113 @@ export default function TodoApp() {
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
           >
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {lists.map((list) => {
-                const listTodos = todosByList[list.id] || []
-                const completedCount = listTodos.filter((todo) => todo.completed).length
+            <SortableContext items={lists.map((list) => list.id)} strategy={rectSortingStrategy}>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {lists.map((list) => {
+                  const listTodos = todosByList[list.id] || []
+                  const completedCount = listTodos.filter((todo) => todo.completed).length
 
-                return (
-                  <DroppableList key={list.id} listId={list.id}>
-                    <Card className="shadow-lg">
-                      <CardHeader className="pb-3">
-                        <div className="flex items-center justify-between">
-                          {editingListId === list.id ? (
-                            <div className="flex items-center gap-2 flex-1">
+                  return (
+                    <SortableList key={list.id} id={list.id}>
+                      <DroppableList listId={list.id}>
+                        <Card className="shadow-lg">
+                          <CardHeader className="pb-3">
+                            <div className="flex items-center justify-between">
+                              {editingListId === list.id ? (
+                                <div className="flex items-center gap-2 flex-1">
+                                  <Input
+                                    value={editingListName}
+                                    onChange={(e) => setEditingListName(e.target.value)}
+                                    onKeyPress={(e) => handleKeyPress(e, handleSaveListEdit)}
+                                    className="flex-1"
+                                    autoFocus
+                                  />
+                                  <Button size="icon" variant="ghost" onClick={handleSaveListEdit}>
+                                    <Check className="h-4 w-4" />
+                                  </Button>
+                                  <Button size="icon" variant="ghost" onClick={handleCancelListEdit}>
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              ) : (
+                                <>
+                                  <div>
+                                    <CardTitle className="text-lg">{list.name}</CardTitle>
+                                    <p className="text-sm text-muted-foreground mt-1">
+                                      {completedCount}/{listTodos.length} 완료
+                                    </p>
+                                  </div>
+                                  <div className="flex gap-1">
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      onClick={() => handleEditList(list.id, list.name)}
+                                    >
+                                      <Edit2 className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      onClick={() => handleDeleteList(list.id)}
+                                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="flex gap-2 mb-4">
                               <Input
-                                value={editingListName}
-                                onChange={(e) => setEditingListName(e.target.value)}
-                                onKeyPress={(e) => handleKeyPress(e, handleSaveListEdit)}
+                                placeholder="새로운 할일..."
+                                value={newTodoTexts[list.id] || ""}
+                                onChange={(e) => setNewTodoTexts({ ...newTodoTexts, [list.id]: e.target.value })}
+                                onKeyPress={(e) => handleKeyPress(e, () => handleAddTodo(list.id))}
                                 className="flex-1"
-                                autoFocus
+                                disabled={addingTodos[list.id]}
                               />
-                              <Button size="icon" variant="ghost" onClick={handleSaveListEdit}>
-                                <Check className="h-4 w-4" />
-                              </Button>
-                              <Button size="icon" variant="ghost" onClick={handleCancelListEdit}>
-                                <X className="h-4 w-4" />
+                              <Button
+                                size="icon"
+                                onClick={() => handleAddTodo(list.id)}
+                                disabled={addingTodos[list.id] || !newTodoTexts[list.id]?.trim()}
+                              >
+                                {addingTodos[list.id] ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Plus className="h-4 w-4" />
+                                )}
                               </Button>
                             </div>
-                          ) : (
-                            <>
-                              <div>
-                                <CardTitle className="text-lg">{list.name}</CardTitle>
-                                <p className="text-sm text-muted-foreground mt-1">
-                                  {completedCount}/{listTodos.length} 완료
-                                </p>
-                              </div>
-                              <div className="flex gap-1">
-                                <Button size="icon" variant="ghost" onClick={() => handleEditList(list.id, list.name)}>
-                                  <Edit2 className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  onClick={() => handleDeleteList(list.id)}
-                                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="flex gap-2 mb-4">
-                          <Input
-                            placeholder="새로운 할일..."
-                            value={newTodoTexts[list.id] || ""}
-                            onChange={(e) => setNewTodoTexts({ ...newTodoTexts, [list.id]: e.target.value })}
-                            onKeyPress={(e) => handleKeyPress(e, () => handleAddTodo(list.id))}
-                            className="flex-1"
-                            disabled={addingTodos[list.id]}
-                          />
-                          <Button
-                            size="icon"
-                            onClick={() => handleAddTodo(list.id)}
-                            disabled={addingTodos[list.id] || !newTodoTexts[list.id]?.trim()}
-                          >
-                            {addingTodos[list.id] ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Plus className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </div>
 
-                        {listTodos.length === 0 ? (
-                          <div className="text-center py-4 text-muted-foreground text-sm">할일이 없습니다</div>
-                        ) : (
-                          <SortableContext
-                            items={listTodos.map((todo) => todo.id)}
-                            strategy={verticalListSortingStrategy}
-                          >
-                            <div className="space-y-2 max-h-96 overflow-y-auto">
-                              {listTodos.map((todo) => (
-                                <SortableTodo
-                                  key={todo.id}
-                                  todo={todo}
-                                  onToggle={(completed) => handleToggleTodo(todo.id, completed, list.id)}
-                                  onDelete={() => handleDeleteTodo(todo.id, list.id)}
-                                />
-                              ))}
-                            </div>
-                          </SortableContext>
-                        )}
-                      </CardContent>
-                    </Card>
-                  </DroppableList>
-                )
-              })}
-            </div>
+                            {listTodos.length === 0 ? (
+                              <div className="text-center py-4 text-muted-foreground text-sm">할일이 없습니다</div>
+                            ) : (
+                              <SortableContext
+                                items={listTodos.map((todo) => todo.id)}
+                                strategy={verticalListSortingStrategy}
+                              >
+                                <div className="space-y-2 max-h-96 overflow-y-auto">
+                                  {listTodos.map((todo) => (
+                                    <SortableTodo
+                                      key={todo.id}
+                                      todo={todo}
+                                      onToggle={(completed) => handleToggleTodo(todo.id, completed, list.id)}
+                                      onDelete={() => handleDeleteTodo(todo.id, list.id)}
+                                    />
+                                  ))}
+                                </div>
+                              </SortableContext>
+                            )}
+                          </CardContent>
+                        </Card>
+                      </DroppableList>
+                    </SortableList>
+                  )
+                })}
+              </div>
+            </SortableContext>
             <DragOverlay>
               {activeTodo ? (
                 <div className="flex items-center gap-2 p-2 rounded border bg-card shadow-lg opacity-90">

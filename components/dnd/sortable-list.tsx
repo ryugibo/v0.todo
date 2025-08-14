@@ -1,94 +1,35 @@
 "use client"
 
-import React from "react"
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-  DragOverlay,
-  type DragStartEvent,
-} from "@dnd-kit/core"
-import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable"
-import { restrictToVerticalAxis, restrictToWindowEdges } from "@dnd-kit/modifiers"
+import type React from "react"
+import { useSortable } from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import { GripVertical } from "lucide-react"
 
-interface SortableListProps<T> {
-  items: T[]
-  onReorder: (items: T[]) => void
-  children: (item: T, index: number) => React.ReactNode
-  getItemId: (item: T) => string
-  disabled?: boolean
-  overlay?: (item: T | null) => React.ReactNode
+interface SortableListProps {
+  id: string
+  children: React.ReactNode
 }
 
-export function SortableList<T>({
-  items,
-  onReorder,
-  children,
-  getItemId,
-  disabled = false,
-  overlay,
-}: SortableListProps<T>) {
-  const [activeItem, setActiveItem] = React.useState<T | null>(null)
+export function SortableList({ id, children }: SortableListProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
-  )
-
-  const handleDragStart = (event: DragStartEvent) => {
-    const { active } = event
-    const item = items.find((item) => getItemId(item) === active.id)
-    setActiveItem(item || null)
-  }
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event
-
-    if (over && active.id !== over.id) {
-      const oldIndex = items.findIndex((item) => getItemId(item) === active.id)
-      const newIndex = items.findIndex((item) => getItemId(item) === over.id)
-
-      const newItems = arrayMove(items, oldIndex, newIndex)
-      onReorder(newItems)
-    }
-
-    setActiveItem(null)
-  }
-
-  if (disabled) {
-    return (
-      <div>
-        {items.map((item, index) => (
-          <div key={getItemId(item)}>{children(item, index)}</div>
-        ))}
-      </div>
-    )
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
   }
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-      modifiers={[restrictToVerticalAxis, restrictToWindowEdges]}
-    >
-      <SortableContext items={items.map(getItemId)} strategy={verticalListSortingStrategy}>
-        {items.map((item, index) => (
-          <div key={getItemId(item)}>{children(item, index)}</div>
-        ))}
-      </SortableContext>
-      <DragOverlay>{activeItem && overlay ? overlay(activeItem) : activeItem && children(activeItem, -1)}</DragOverlay>
-    </DndContext>
+    <div ref={setNodeRef} style={style} className="relative">
+      <div
+        {...attributes}
+        {...listeners}
+        className="absolute top-2 right-2 z-10 p-1 rounded cursor-grab hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+        title="리스트 순서 변경"
+      >
+        <GripVertical className="h-4 w-4 text-muted-foreground" />
+      </div>
+      {children}
+    </div>
   )
 }

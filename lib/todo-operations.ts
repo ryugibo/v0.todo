@@ -17,7 +17,10 @@ export const todoOperations = {
     }
 
     try {
-      // 새로운 스키마 시도 (list_id, order_index 포함)
+      // 먼저 스키마 확인 - list_id 컬럼이 있는지 체크
+      const { data: schemaCheck } = await supabase.from("todos").select("list_id").limit(1)
+
+      // 새로운 스키마가 사용 가능한 경우
       if (listId) {
         const { data: maxOrderData } = await supabase
           .from("todos")
@@ -45,11 +48,35 @@ export const todoOperations = {
         return data
       }
     } catch (error: any) {
-      // list_id 컬럼이 없는 경우 기존 스키마로 폴백
-      console.warn("New schema not available, using legacy schema:", error.message)
+      // list_id 컬럼이 없는 경우 또는 다른 스키마 에러
+      if (error.message?.includes("column") || error.code === "42703") {
+        console.warn("New schema not available, using legacy schema:", error.message)
+
+        // 기존 스키마로 투두 생성
+        const { data, error: legacyError } = await supabase
+          .from("todos")
+          .insert([
+            {
+              text: text.trim(),
+              user_id: user.id,
+            },
+          ])
+          .select()
+          .single()
+
+        if (legacyError) {
+          console.error("Error creating todo with legacy schema:", legacyError)
+          throw legacyError
+        }
+
+        return data
+      }
+
+      // 다른 에러는 다시 throw
+      throw error
     }
 
-    // 기존 스키마로 투두 생성
+    // listId가 없는 경우 기존 스키마 사용
     const { data, error } = await supabase
       .from("todos")
       .insert([

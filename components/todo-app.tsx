@@ -192,47 +192,8 @@ export default function TodoApp() {
   }
 
   const handleDragOver = (event: DragOverEvent) => {
-    const { active, over } = event
-    if (!over) return
-
-    const activeId = active.id as string
-    const overId = over.id as string
-
-    let sourceListId = ""
-    let destinationListId = ""
-
-    for (const listId in todosByList) {
-      if (todosByList[listId].some((todo) => todo.id === activeId)) {
-        sourceListId = listId
-        break
-      }
-    }
-
-    if (lists.some((list) => list.id === overId)) {
-      destinationListId = overId
-    } else {
-      for (const listId in todosByList) {
-        if (todosByList[listId].some((todo) => todo.id === overId)) {
-          destinationListId = listId
-          break
-        }
-      }
-    }
-
-    if (!sourceListId || !destinationListId) return
-    if (sourceListId === destinationListId) return
-
-    const sourceTodos = todosByList[sourceListId]
-    const destinationTodos = todosByList[destinationListId] || []
-    const todoToMove = sourceTodos.find((todo) => todo.id === activeId)
-
-    if (!todoToMove) return
-
-    setTodosByList({
-      ...todosByList,
-      [sourceListId]: sourceTodos.filter((todo) => todo.id !== activeId),
-      [destinationListId]: [todoToMove, ...destinationTodos],
-    })
+    // 시각적 피드백만 제공하고 실제 상태는 변경하지 않음
+    // DragOverlay가 시각적 피드백을 처리함
   }
 
   const handleDragEnd = async (event: DragEndEvent) => {
@@ -248,6 +209,7 @@ export default function TodoApp() {
     let sourceListId = ""
     let destinationListId = ""
 
+    // 소스 리스트 찾기
     for (const listId in todosByList) {
       if (todosByList[listId].some((todo) => todo.id === activeId)) {
         sourceListId = listId
@@ -255,9 +217,12 @@ export default function TodoApp() {
       }
     }
 
+    // 목적지 리스트 찾기
     if (lists.some((list) => list.id === overId)) {
+      // 리스트 자체에 드롭한 경우
       destinationListId = overId
     } else {
+      // 다른 투두 위에 드롭한 경우
       for (const listId in todosByList) {
         if (todosByList[listId].some((todo) => todo.id === overId)) {
           destinationListId = listId
@@ -270,33 +235,31 @@ export default function TodoApp() {
 
     try {
       if (sourceListId !== destinationListId) {
-        await todoOperations.moveTodo(activeId, destinationListId)
+        // 다른 리스트로 이동
+        const destinationTodos = todosByList[destinationListId] || []
+        const newOrderIndex = destinationTodos.length // 맨 뒤에 추가
+
+        await todoOperations.moveTodo(activeId, destinationListId, newOrderIndex)
       } else {
+        // 같은 리스트 내에서 순서 변경
         const todos = todosByList[sourceListId]
         const oldIndex = todos.findIndex((todo) => todo.id === activeId)
         const newIndex = todos.findIndex((todo) => todo.id === overId)
 
-        if (oldIndex !== newIndex) {
+        if (oldIndex !== newIndex && oldIndex !== -1 && newIndex !== -1) {
           const reorderedTodos = [...todos]
           const [removed] = reorderedTodos.splice(oldIndex, 1)
           reorderedTodos.splice(newIndex, 0, removed)
 
-          const updates = reorderedTodos.map((todo, index) => ({
-            id: todo.id,
-            order_index: index,
-          }))
-
-          await todoOperations.reorderTodos(updates)
-          setTodosByList({
-            ...todosByList,
-            [sourceListId]: reorderedTodos,
-          })
+          await todoOperations.reorderTodos(reorderedTodos)
         }
       }
 
+      // 데이터 다시 로드하여 일관성 보장
       await loadData()
     } catch (error) {
       console.error("Error handling drag end:", error)
+      // 에러 발생 시 데이터 다시 로드
       await loadData()
     }
   }

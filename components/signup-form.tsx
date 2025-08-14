@@ -1,28 +1,51 @@
 "use client"
 
+import type React from "react"
+
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Loader2, Mail, Lock } from "lucide-react"
 import Link from "next/link"
-import { signup } from "@/lib/auth-actions"
+import { createClient } from "@/lib/supabase/client"
 
 export default function SignUpForm() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const router = useRouter()
+  const supabase = createClient()
 
-  async function handleSubmit(formData: FormData) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
     setIsLoading(true)
     setError(null)
     setSuccess(null)
 
+    const formData = new FormData(e.currentTarget)
+    const email = formData.get("email") as string
+    const password = formData.get("password") as string
+
     try {
-      await signup(formData)
-      setSuccess("회원가입이 완료되었습니다! 이메일을 확인해주세요.")
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo:
+            process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || `${window.location.origin}/auth/callback`,
+        },
+      })
+
+      if (error) {
+        setError("회원가입에 실패했습니다. 다시 시도해주세요.")
+        return
+      }
+
+      setSuccess("회원가입이 완료되었습니다! 이메일을 확인하고 인증 링크를 클릭해주세요.")
     } catch (err) {
-      setError("회원가입에 실패했습니다. 다시 시도해주세요.")
+      setError("회원가입 중 오류가 발생했습니다. 다시 시도해주세요.")
     } finally {
       setIsLoading(false)
     }
@@ -35,7 +58,7 @@ export default function SignUpForm() {
         <CardDescription className="text-gray-300">새 계정을 만들어 투두리스트를 시작하세요</CardDescription>
       </CardHeader>
       <CardContent>
-        <form action={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
             <div className="bg-red-500/10 border border-red-500/50 text-red-300 px-4 py-3 rounded-lg text-sm">
               {error}

@@ -234,7 +234,6 @@ export default function TodoApp() {
       return
     }
 
-    // 기존 투두 드래그 앤 드롭 로직
     let sourceListId = ""
     let destinationListId = ""
 
@@ -261,17 +260,25 @@ export default function TodoApp() {
     if (!sourceListId || !destinationListId) return
 
     try {
-      let shouldReload = false
-
       if (sourceListId !== destinationListId) {
-        // 다른 리스트로 이동
-        const destinationTodos = todosByList[destinationListId] || []
-        const newOrderIndex = destinationTodos.length // 맨 뒤에 추가
+        // 다른 리스트로 이동 - 즉시 UI 업데이트
+        const todoToMove = todosByList[sourceListId].find((todo) => todo.id === activeId)
+        if (!todoToMove) return
 
+        const newTodosByList = { ...todosByList }
+        // 원본 리스트에서 제거
+        newTodosByList[sourceListId] = newTodosByList[sourceListId].filter((todo) => todo.id !== activeId)
+        // 대상 리스트에 추가
+        newTodosByList[destinationListId] = [todoToMove, ...(newTodosByList[destinationListId] || [])]
+
+        setTodosByList(newTodosByList)
+
+        // 백그라운드에서 데이터베이스 업데이트
+        const destinationTodos = todosByList[destinationListId] || []
+        const newOrderIndex = destinationTodos.length
         await todoOperations.moveTodo(activeId, destinationListId, newOrderIndex)
-        shouldReload = true
       } else {
-        // 같은 리스트 내에서 순서 변경
+        // 같은 리스트 내에서 순서 변경 - 즉시 UI 업데이트
         const todos = todosByList[sourceListId]
         const oldIndex = todos.findIndex((todo) => todo.id === activeId)
         const newIndex = todos.findIndex((todo) => todo.id === overId)
@@ -281,13 +288,14 @@ export default function TodoApp() {
           const [removed] = reorderedTodos.splice(oldIndex, 1)
           reorderedTodos.splice(newIndex, 0, removed)
 
-          await todoOperations.reorderTodos(reorderedTodos)
-          shouldReload = true
-        }
-      }
+          setTodosByList({
+            ...todosByList,
+            [sourceListId]: reorderedTodos,
+          })
 
-      if (shouldReload) {
-        await loadData()
+          // 백그라운드에서 데이터베이스 업데이트
+          await todoOperations.reorderTodos(reorderedTodos)
+        }
       }
     } catch (error) {
       console.error("Error handling drag end:", error)

@@ -29,7 +29,7 @@ export function DraggableItem({ id, children, className, disabled = false, data 
       ref={setNodeRef}
       style={style}
       className={cn(
-        "cursor-grab active:cursor-grabbing",
+        "cursor-grab active:cursor-grabbing select-none touch-none",
         isDragging && "z-50 opacity-50",
         disabled && "cursor-not-allowed opacity-50",
         className,

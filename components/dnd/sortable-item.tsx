@@ -30,7 +30,7 @@ export function SortableItem({ id, children, className, disabled = false, handle
       ref={setNodeRef}
       style={style}
       className={cn(
-        "relative",
+        "relative select-none",
         isDragging && "z-50 opacity-50",
         disabled && "cursor-not-allowed opacity-50",
         className,
@@ -40,7 +40,7 @@ export function SortableItem({ id, children, className, disabled = false, handle
       {handle && !disabled && (
         <div
           {...listeners}
-          className="absolute left-2 top-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing opacity-40 hover:opacity-70 transition-opacity"
+          className="absolute left-2 top-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing opacity-40 hover:opacity-70 transition-opacity touch-none"
         >
           <GripVertical className="h-4 w-4" />
         </div>

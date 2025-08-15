@@ -20,11 +20,11 @@ export function SortableList({ id, children }: SortableListProps) {
   }
 
   return (
-    <div ref={setNodeRef} style={style} className="relative">
+    <div ref={setNodeRef} style={style} className="relative select-none">
       <div
         {...attributes}
         {...listeners}
-        className="absolute top-2 right-2 z-10 p-1 rounded cursor-grab hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+        className="absolute top-2 right-2 z-10 p-1 rounded cursor-grab hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors touch-none"
         title="리스트 순서 변경"
       >
         <GripVertical className="h-4 w-4 text-muted-foreground" />

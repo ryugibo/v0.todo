@@ -28,9 +28,9 @@ export function SortableTodo({ todo, onToggle, onDelete }: SortableTodoProps) {
     <div
       ref={setNodeRef}
       style={style}
-      className="flex items-center gap-2 p-2 rounded border bg-card hover:bg-accent/50 transition-colors"
+      className="flex items-center gap-2 p-2 rounded border bg-card hover:bg-accent/50 transition-colors select-none"
     >
-      <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing">
+      <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing touch-none">
         <GripVertical className="h-4 w-4 text-muted-foreground" />
       </div>
       <Checkbox checked={todo.completed} onCheckedChange={onToggle} />

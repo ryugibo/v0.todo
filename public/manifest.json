@@ -1,7 +1,7 @@
 {
-  "name": "Todo App",
-  "short_name": "Todo",
-  "description": "A powerful todo app with drag and drop functionality",
+  "name": "GameTodo - Gamified Task Manager",
+  "short_name": "GameTodo",
+  "description": "A gamified todo app that makes productivity fun with achievements and rewards",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
@@ -21,7 +21,7 @@
       "purpose": "maskable any"
     }
   ],
-  "categories": ["productivity", "utilities"],
+  "categories": ["productivity", "utilities", "games"],
   "lang": "ko",
   "dir": "ltr"
 }

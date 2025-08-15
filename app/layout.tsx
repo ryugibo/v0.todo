@@ -5,8 +5,8 @@ import { GeistMono } from "geist/font/mono"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "Todo App",
-  description: "A powerful todo app with drag and drop functionality",
+  title: "GameTodo - Gamified Task Manager",
+  description: "A gamified todo app that makes productivity fun with achievements and rewards",
   generator: "v0.app",
   manifest: "/manifest.json",
   themeColor: "#3b82f6",
@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Todo App",
+    title: "GameTodo",
   },
 }
 
@@ -36,7 +36,7 @@ html {
         <link rel="apple-touch-icon" href="/icon-192x192.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="Todo App" />
+        <meta name="apple-mobile-web-app-title" content="GameTodo" />
         <script
           dangerouslySetInnerHTML={{
             __html: `

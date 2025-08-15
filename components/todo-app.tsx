@@ -6,25 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Trash2, Plus, Loader2, Edit2, Check, X, GripVertical } from "lucide-react"
 import { listOperations } from "@/lib/list-operations"
 import { todoOperations } from "@/lib/todo-operations"
 import type { TodoList, Todo } from "@/lib/types"
-import {
-  DndContext,
-  type DragEndEvent,
-  type DragOverEvent,
-  DragOverlay,
-  type DragStartEvent,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  closestCorners,
-} from "@dnd-kit/core"
-import { SortableContext, verticalListSortingStrategy, rectSortingStrategy } from "@dnd-kit/sortable"
-import { SortableTodo } from "@/components/dnd/sortable-todo"
-import { DroppableList } from "@/components/dnd/droppable-list"
-import { SortableList } from "@/components/dnd/sortable-list"
 
 export default function TodoApp() {
   const [lists, setLists] = useState<TodoList[]>([])
@@ -36,16 +20,6 @@ export default function TodoApp() {
   const [editingListName, setEditingListName] = useState("")
   const [newTodoTexts, setNewTodoTexts] = useState<Record<string, string>>({})
   const [addingTodos, setAddingTodos] = useState<Record<string, boolean>>({})
-  const [activeId, setActiveId] = useState<string | null>(null)
-  const [activeTodo, setActiveTodo] = useState<Todo | null>(null)
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-  )
 
   useEffect(() => {
     loadData()
@@ -179,138 +153,13 @@ export default function TodoApp() {
     return { totalTodos, completedTodos }
   }
 
-  const handleDragStart = (event: DragStartEvent) => {
-    const { active } = event
-    setActiveId(active.id as string)
-
-    for (const listId in todosByList) {
-      const todo = todosByList[listId].find((t) => t.id === active.id)
-      if (todo) {
-        setActiveTodo(todo)
-        break
-      }
-    }
-  }
-
-  const handleDragOver = (event: DragOverEvent) => {
-    // 시각적 피드백만 제공하고 실제 상태는 변경하지 않음
-    // DragOverlay가 시각적 피드백을 처리함
-  }
-
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event
-    setActiveId(null)
-    setActiveTodo(null)
-
-    if (!over) return
-
-    const activeId = active.id as string
-    const overId = over.id as string
-
-    // 리스트 순서 변경인지 확인
-    const isListDrag = lists.some((list) => list.id === activeId)
-
-    if (isListDrag) {
-      const oldIndex = lists.findIndex((list) => list.id === activeId)
-      const newIndex = lists.findIndex((list) => list.id === overId)
-
-      if (oldIndex !== newIndex && oldIndex !== -1 && newIndex !== -1) {
-        const reorderedLists = [...lists]
-        const [removed] = reorderedLists.splice(oldIndex, 1)
-        reorderedLists.splice(newIndex, 0, removed)
-
-        // 즉시 UI 업데이트
-        setLists(reorderedLists)
-
-        try {
-          // 백그라운드에서 데이터베이스 업데이트
-          await listOperations.reorderLists(reorderedLists)
-        } catch (error) {
-          console.error("Error reordering lists:", error)
-          // 에러 발생 시에만 데이터 다시 로드
-          await loadData()
-        }
-      }
-      return
-    }
-
-    let sourceListId = ""
-    let destinationListId = ""
-
-    for (const listId in todosByList) {
-      if (todosByList[listId].some((todo) => todo.id === activeId)) {
-        sourceListId = listId
-        break
-      }
-    }
-
-    if (lists.some((list) => list.id === overId)) {
-      // 리스트 자체에 드롭한 경우
-      destinationListId = overId
-    } else {
-      // 다른 투두 위에 드롭한 경우
-      for (const listId in todosByList) {
-        if (todosByList[listId].some((todo) => todo.id === overId)) {
-          destinationListId = listId
-          break
-        }
-      }
-    }
-
-    if (!sourceListId || !destinationListId) return
-
-    try {
-      if (sourceListId !== destinationListId) {
-        // 다른 리스트로 이동 - 즉시 UI 업데이트
-        const todoToMove = todosByList[sourceListId].find((todo) => todo.id === activeId)
-        if (!todoToMove) return
-
-        const newTodosByList = { ...todosByList }
-        // 원본 리스트에서 제거
-        newTodosByList[sourceListId] = newTodosByList[sourceListId].filter((todo) => todo.id !== activeId)
-        // 대상 리스트에 추가
-        newTodosByList[destinationListId] = [todoToMove, ...(newTodosByList[destinationListId] || [])]
-
-        setTodosByList(newTodosByList)
-
-        // 백그라운드에서 데이터베이스 업데이트
-        const destinationTodos = todosByList[destinationListId] || []
-        const newOrderIndex = destinationTodos.length
-        await todoOperations.moveTodo(activeId, destinationListId, newOrderIndex)
-      } else {
-        // 같은 리스트 내에서 순서 변경 - 즉시 UI 업데이트
-        const todos = todosByList[sourceListId]
-        const oldIndex = todos.findIndex((todo) => todo.id === activeId)
-        const newIndex = todos.findIndex((todo) => todo.id === overId)
-
-        if (oldIndex !== newIndex && oldIndex !== -1 && newIndex !== -1) {
-          const reorderedTodos = [...todos]
-          const [removed] = reorderedTodos.splice(oldIndex, 1)
-          reorderedTodos.splice(newIndex, 0, removed)
-
-          setTodosByList({
-            ...todosByList,
-            [sourceListId]: reorderedTodos,
-          })
-
-          // 백그라운드에서 데이터베이스 업데이트
-          await todoOperations.reorderTodos(reorderedTodos)
-        }
-      }
-    } catch (error) {
-      console.error("Error handling drag end:", error)
-      // 에러 발생 시에만 데이터 다시 로드
-      await loadData()
-    }
-  }
-
   if (loading) {
     return (
       <div className="p-4">
         <div className="max-w-7xl mx-auto">
           <Card className="shadow-lg">
             <CardContent className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin mr-2" />
+              <div className="animate-spin w-6 h-6 border-2 border-purple-600 border-t-transparent rounded-full mr-2"></div>
               <span>할일 목록을 불러오는 중...</span>
             </CardContent>
           </Card>
@@ -325,15 +174,15 @@ export default function TodoApp() {
     <div className="p-4">
       <div className="max-w-7xl mx-auto">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-2">나의 할일 목록</h1>
+          <h1 className="text-3xl font-bold text-purple-800 dark:text-purple-100 mb-2">🎮 GameTodo</h1>
           <p className="text-sm text-muted-foreground">
             전체 {completedTodos}/{totalTodos} 완료 • {lists.length}개 리스트
           </p>
         </div>
 
-        <Card className="shadow-lg mb-6">
+        <Card className="shadow-lg mb-6 border-purple-200 dark:border-purple-800">
           <CardHeader>
-            <CardTitle>새로운 리스트 추가</CardTitle>
+            <CardTitle className="text-purple-700 dark:text-purple-300">➕ 새로운 리스트 추가</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex gap-2">
@@ -345,8 +194,12 @@ export default function TodoApp() {
                 className="flex-1"
                 disabled={addingList}
               />
-              <Button onClick={handleAddList} disabled={addingList || newListName.trim() === ""}>
-                {addingList ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              <Button
+                onClick={handleAddList}
+                disabled={addingList || newListName.trim() === ""}
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                {addingList ? "⏳" : "➕"}
               </Button>
             </div>
           </CardContent>
@@ -355,141 +208,115 @@ export default function TodoApp() {
         {lists.length === 0 ? (
           <Card className="shadow-lg">
             <CardContent className="text-center py-8 text-muted-foreground">
-              <p>아직 리스트가 없습니다.</p>
+              <p>📝 아직 리스트가 없습니다.</p>
               <p className="text-sm mt-1">위에서 새로운 리스트를 추가해보세요!</p>
             </CardContent>
           </Card>
         ) : (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCorners}
-            onDragStart={handleDragStart}
-            onDragOver={handleDragOver}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext items={lists.map((list) => list.id)} strategy={rectSortingStrategy}>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {lists.map((list) => {
-                  const listTodos = todosByList[list.id] || []
-                  const completedCount = listTodos.filter((todo) => todo.completed).length
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {lists.map((list) => {
+              const listTodos = todosByList[list.id] || []
+              const completedCount = listTodos.filter((todo) => todo.completed).length
 
-                  return (
-                    <SortableList key={list.id} id={list.id}>
-                      <DroppableList listId={list.id}>
-                        <Card className="shadow-lg">
-                          <CardHeader className="pb-3">
-                            <div className="flex items-center justify-between">
-                              {editingListId === list.id ? (
-                                <div className="flex items-center gap-2 flex-1">
-                                  <Input
-                                    value={editingListName}
-                                    onChange={(e) => setEditingListName(e.target.value)}
-                                    onKeyPress={(e) => handleKeyPress(e, handleSaveListEdit)}
-                                    className="flex-1"
-                                    autoFocus
-                                  />
-                                  <Button size="icon" variant="ghost" onClick={handleSaveListEdit}>
-                                    <Check className="h-4 w-4" />
-                                  </Button>
-                                  <Button size="icon" variant="ghost" onClick={handleCancelListEdit}>
-                                    <X className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              ) : (
-                                <>
-                                  <div>
-                                    <CardTitle className="text-lg">{list.name}</CardTitle>
-                                    <p className="text-sm text-muted-foreground mt-1">
-                                      {completedCount}/{listTodos.length} 완료
-                                    </p>
-                                  </div>
-                                  <div className="flex gap-1">
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      onClick={() => handleEditList(list.id, list.name)}
-                                    >
-                                      <Edit2 className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      onClick={() => handleDeleteList(list.id)}
-                                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                </>
-                              )}
-                            </div>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="flex gap-2 mb-4">
-                              <Input
-                                placeholder="새로운 할일..."
-                                value={newTodoTexts[list.id] || ""}
-                                onChange={(e) => setNewTodoTexts({ ...newTodoTexts, [list.id]: e.target.value })}
-                                onKeyPress={(e) => handleKeyPress(e, () => handleAddTodo(list.id))}
-                                className="flex-1"
-                                disabled={addingTodos[list.id]}
-                              />
-                              <Button
-                                size="icon"
-                                onClick={() => handleAddTodo(list.id)}
-                                disabled={addingTodos[list.id] || !newTodoTexts[list.id]?.trim()}
-                              >
-                                {addingTodos[list.id] ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Plus className="h-4 w-4" />
-                                )}
-                              </Button>
-                            </div>
+              return (
+                <Card key={list.id} className="shadow-lg border-purple-200 dark:border-purple-800">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      {editingListId === list.id ? (
+                        <div className="flex items-center gap-2 flex-1">
+                          <Input
+                            value={editingListName}
+                            onChange={(e) => setEditingListName(e.target.value)}
+                            onKeyPress={(e) => handleKeyPress(e, handleSaveListEdit)}
+                            className="flex-1"
+                            autoFocus
+                          />
+                          <Button size="sm" variant="ghost" onClick={handleSaveListEdit}>
+                            ✅
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={handleCancelListEdit}>
+                            ❌
+                          </Button>
+                        </div>
+                      ) : (
+                        <>
+                          <div>
+                            <CardTitle className="text-lg text-purple-700 dark:text-purple-300">{list.name}</CardTitle>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {completedCount}/{listTodos.length} 완료
+                            </p>
+                          </div>
+                          <div className="flex gap-1">
+                            <Button size="sm" variant="ghost" onClick={() => handleEditList(list.id, list.name)}>
+                              ✏️
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleDeleteList(list.id)}
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            >
+                              🗑️
+                            </Button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex gap-2 mb-4">
+                      <Input
+                        placeholder="새로운 할일..."
+                        value={newTodoTexts[list.id] || ""}
+                        onChange={(e) => setNewTodoTexts({ ...newTodoTexts, [list.id]: e.target.value })}
+                        onKeyPress={(e) => handleKeyPress(e, () => handleAddTodo(list.id))}
+                        className="flex-1"
+                        disabled={addingTodos[list.id]}
+                      />
+                      <Button
+                        size="sm"
+                        onClick={() => handleAddTodo(list.id)}
+                        disabled={addingTodos[list.id] || !newTodoTexts[list.id]?.trim()}
+                        className="bg-purple-600 hover:bg-purple-700"
+                      >
+                        {addingTodos[list.id] ? "⏳" : "➕"}
+                      </Button>
+                    </div>
 
-                            {listTodos.length === 0 ? (
-                              <div className="text-center py-4 text-muted-foreground text-sm">할일이 없습니다</div>
-                            ) : (
-                              <SortableContext
-                                items={listTodos.map((todo) => todo.id)}
-                                strategy={verticalListSortingStrategy}
-                              >
-                                <div className="space-y-2 max-h-96 overflow-y-auto">
-                                  {listTodos.map((todo) => (
-                                    <SortableTodo
-                                      key={todo.id}
-                                      todo={todo}
-                                      onToggle={(completed) => handleToggleTodo(todo.id, completed, list.id)}
-                                      onDelete={() => handleDeleteTodo(todo.id, list.id)}
-                                    />
-                                  ))}
-                                </div>
-                              </SortableContext>
-                            )}
-                          </CardContent>
-                        </Card>
-                      </DroppableList>
-                    </SortableList>
-                  )
-                })}
-              </div>
-            </SortableContext>
-            <DragOverlay>
-              {activeTodo ? (
-                <div className="flex items-center gap-2 p-2 rounded border bg-card shadow-lg opacity-90">
-                  <GripVertical className="h-4 w-4 text-muted-foreground" />
-                  <Checkbox checked={activeTodo.completed} />
-                  <span
-                    className={`flex-1 text-sm ${
-                      activeTodo.completed ? "line-through text-muted-foreground" : "text-foreground"
-                    }`}
-                  >
-                    {activeTodo.text}
-                  </span>
-                </div>
-              ) : null}
-            </DragOverlay>
-          </DndContext>
+                    {listTodos.length === 0 ? (
+                      <div className="text-center py-4 text-muted-foreground text-sm">📋 할일이 없습니다</div>
+                    ) : (
+                      <div className="space-y-2 max-h-96 overflow-y-auto">
+                        {listTodos.map((todo) => (
+                          <div key={todo.id} className="flex items-center gap-2 p-2 rounded border bg-card/50">
+                            <Checkbox
+                              checked={todo.completed}
+                              onCheckedChange={(checked) => handleToggleTodo(todo.id, checked as boolean, list.id)}
+                            />
+                            <span
+                              className={`flex-1 text-sm ${
+                                todo.completed ? "line-through text-muted-foreground" : "text-foreground"
+                              }`}
+                            >
+                              {todo.completed ? "✅" : "⭕"} {todo.text}
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleDeleteTodo(todo.id, list.id)}
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            >
+                              🗑️
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
         )}
       </div>
     </div>

@@ -5,10 +5,43 @@ import type { TodoList, Todo } from "@/lib/types"
 
 const supabase = createClient()
 
+const DEMO_LISTS_KEY = "demo_todo_lists"
+const DEMO_TODOS_KEY = "demo_todos"
+
+function getDemoLists(): TodoList[] {
+  if (typeof window === "undefined") return []
+  const stored = localStorage.getItem(DEMO_LISTS_KEY)
+  return stored ? JSON.parse(stored) : []
+}
+
+function saveDemoLists(lists: TodoList[]) {
+  if (typeof window === "undefined") return
+  localStorage.setItem(DEMO_LISTS_KEY, JSON.stringify(lists))
+}
+
+function getDemoTodos(): Todo[] {
+  if (typeof window === "undefined") return []
+  const stored = localStorage.getItem(DEMO_TODOS_KEY)
+  return stored ? JSON.parse(stored) : []
+}
+
+function saveDemoTodos(todos: Todo[]) {
+  if (typeof window === "undefined") return
+  localStorage.setItem(DEMO_TODOS_KEY, JSON.stringify(todos))
+}
+
 export const listOperations = {
   // 모든 리스트 조회
   async getLists(): Promise<TodoList[]> {
     try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) {
+        return getDemoLists()
+      }
+
       const { data, error } = await supabase.from("todo_lists").select("*").order("order_index", { ascending: true })
 
       if (error) {
@@ -18,103 +51,161 @@ export const listOperations = {
 
       return data || []
     } catch (error) {
-      // 테이블이 없는 경우 빈 배열 반환
-      console.warn("Lists table not found, returning empty array")
-      return []
+      // 테이블이 없는 경우 데모 데이터 반환
+      console.warn("Lists table not found, returning demo data")
+      return getDemoLists()
     }
   },
 
   async ensureDefaultList(): Promise<TodoList> {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      throw new Error("User not authenticated")
-    }
-
-    // 기존 리스트가 있는지 확인
     try {
-      const { data: existingLists } = await supabase.from("todo_lists").select("*").eq("user_id", user.id).limit(1)
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
 
-      if (existingLists && existingLists.length > 0) {
-        return existingLists[0]
+      if (!user) {
+        let demoLists = getDemoLists()
+        if (demoLists.length === 0) {
+          const defaultList: TodoList = {
+            id: "demo-default",
+            name: "기본 리스트",
+            user_id: "demo-user",
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            order_index: 0,
+          }
+          demoLists = [defaultList]
+          saveDemoLists(demoLists)
+        }
+        return demoLists[0]
+      }
+
+      // 기존 리스트가 있는지 확인
+      try {
+        const { data: existingLists } = await supabase.from("todo_lists").select("*").eq("user_id", user.id).limit(1)
+
+        if (existingLists && existingLists.length > 0) {
+          return existingLists[0]
+        }
+      } catch (error) {
+        // 테이블이 없는 경우 무시
+      }
+
+      // 기본 리스트 생성
+      try {
+        const { data, error } = await supabase
+          .from("todo_lists")
+          .insert([
+            {
+              name: "기본 리스트",
+              user_id: user.id,
+              order_index: 0,
+            },
+          ])
+          .select()
+          .single()
+
+        if (error) {
+          console.error("Error creating default list:", error)
+          throw error
+        }
+
+        return data
+      } catch (error) {
+        // 테이블이 없는 경우 임시 리스트 반환
+        return {
+          id: "default",
+          name: "기본 리스트",
+          user_id: user.id,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          order_index: 0,
+        }
       }
     } catch (error) {
-      // 테이블이 없는 경우 무시
+      // 인증 실패 시 데모 기본 리스트 반환
+      let demoLists = getDemoLists()
+      if (demoLists.length === 0) {
+        const defaultList: TodoList = {
+          id: "demo-default",
+          name: "기본 리스트",
+          user_id: "demo-user",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          order_index: 0,
+        }
+        demoLists = [defaultList]
+        saveDemoLists(demoLists)
+      }
+      return demoLists[0]
     }
+  },
 
-    // 기본 리스트 생성
+  // 리스트 생성
+  async createList(name: string): Promise<TodoList> {
     try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) {
+        const demoLists = getDemoLists()
+        const newList: TodoList = {
+          id: `demo-${Date.now()}`,
+          name: name.trim(),
+          user_id: "demo-user",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          order_index: demoLists.length,
+        }
+        demoLists.push(newList)
+        saveDemoLists(demoLists)
+        return newList
+      }
+
+      // 현재 최대 order_index 조회
+      const { data: maxOrderData } = await supabase
+        .from("todo_lists")
+        .select("order_index")
+        .eq("user_id", user.id)
+        .order("order_index", { ascending: false })
+        .limit(1)
+
+      const nextOrderIndex = (maxOrderData?.[0]?.order_index || 0) + 1
+
       const { data, error } = await supabase
         .from("todo_lists")
         .insert([
           {
-            name: "기본 리스트",
+            name: name.trim(),
             user_id: user.id,
-            order_index: 0,
+            order_index: nextOrderIndex,
           },
         ])
         .select()
         .single()
 
       if (error) {
-        console.error("Error creating default list:", error)
+        console.error("Error creating list:", error)
         throw error
       }
 
       return data
     } catch (error) {
-      // 테이블이 없는 경우 임시 리스트 반환
-      return {
-        id: "default",
-        name: "기본 리스트",
-        user_id: user.id,
+      // 인증 실패 시 데모 리스트 생성
+      const demoLists = getDemoLists()
+      const newList: TodoList = {
+        id: `demo-${Date.now()}`,
+        name: name.trim(),
+        user_id: "demo-user",
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        order_index: 0,
+        order_index: demoLists.length,
       }
+      demoLists.push(newList)
+      saveDemoLists(demoLists)
+      return newList
     }
-  },
-
-  // 리스트 생성
-  async createList(name: string): Promise<TodoList> {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      throw new Error("User not authenticated")
-    }
-
-    // 현재 최대 order_index 조회
-    const { data: maxOrderData } = await supabase
-      .from("todo_lists")
-      .select("order_index")
-      .eq("user_id", user.id)
-      .order("order_index", { ascending: false })
-      .limit(1)
-
-    const nextOrderIndex = (maxOrderData?.[0]?.order_index || 0) + 1
-
-    const { data, error } = await supabase
-      .from("todo_lists")
-      .insert([
-        {
-          name: name.trim(),
-          user_id: user.id,
-          order_index: nextOrderIndex,
-        },
-      ])
-      .select()
-      .single()
-
-    if (error) {
-      console.error("Error creating list:", error)
-      throw error
-    }
-
-    return data
   },
 
   // 리스트 수정

@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -9,14 +8,14 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Loader2, Mail, Lock } from "lucide-react"
 import Link from "next/link"
-// import { createClient } from "@/lib/supabase/client"
+import { createClient } from "@/lib/supabase/client"
 import Image from "next/image"
 
 export default function LoginForm() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
-  // const supabase = createClient()
+  const supabase = createClient()
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -27,12 +26,6 @@ export default function LoginForm() {
     const email = formData.get("email") as string
     const password = formData.get("password") as string
 
-    setTimeout(() => {
-      setIsLoading(false)
-      alert("로그인 기능은 현재 개발 중입니다. 로고를 확인해주세요!")
-    }, 1000)
-
-    /* Original Supabase code - temporarily disabled
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email,
@@ -51,7 +44,6 @@ export default function LoginForm() {
       setError("로그인 중 오류가 발생했습니다. 다시 시도해주세요.")
       setIsLoading(false)
     }
-    */
   }
 
   return (

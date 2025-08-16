@@ -8,17 +8,22 @@ export const isSupabaseConfigured =
 
 export function createClient() {
   if (!isSupabaseConfigured) {
-    throw new Error("Supabase environment variables are not configured")
+    // 환경 변수가 없을 때 더미 클라이언트 반환
+    return {
+      auth: {
+        getUser: () => Promise.resolve({ data: { user: null }, error: null }),
+        signInWithPassword: () => Promise.resolve({ data: null, error: { message: "Supabase not configured" } }),
+        signUp: () => Promise.resolve({ data: null, error: { message: "Supabase not configured" } }),
+        signOut: () => Promise.resolve({ error: null }),
+      },
+      from: () => ({
+        select: () => ({ data: [], error: null }),
+        insert: () => ({ data: null, error: { message: "Supabase not configured" } }),
+        update: () => ({ data: null, error: { message: "Supabase not configured" } }),
+        delete: () => ({ error: { message: "Supabase not configured" } }),
+      }),
+    } as any
   }
 
   return createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-}
-
-export type Todo = {
-  id: string
-  text: string
-  completed: boolean
-  created_at: string
-  updated_at: string
-  user_id: string
 }

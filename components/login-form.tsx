@@ -1,50 +1,44 @@
 "use client"
 
-import type React from "react"
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useActionState } from "react"
+import { useFormStatus } from "react-dom"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Loader2, Mail, Lock } from "lucide-react"
 import Link from "next/link"
-import { createClient } from "@/lib/supabase/client"
+import { useRouter } from "next/navigation"
+import { useEffect } from "react"
+import { signIn } from "@/lib/actions"
 import Image from "next/image"
 
+function SubmitButton() {
+  const { pending } = useFormStatus()
+
+  return (
+    <Button type="submit" disabled={pending} className="w-full bg-purple-600 hover:bg-purple-700 text-white">
+      {pending ? (
+        <>
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          로그인 중...
+        </>
+      ) : (
+        "로그인"
+      )}
+    </Button>
+  )
+}
+
 export default function LoginForm() {
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const router = useRouter()
-  const supabase = createClient()
+  const [state, formAction] = useActionState(signIn, null)
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setIsLoading(true)
-    setError(null)
-
-    const formData = new FormData(e.currentTarget)
-    const email = formData.get("email") as string
-    const password = formData.get("password") as string
-
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-
-      if (error) {
-        setError("로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.")
-        setIsLoading(false)
-        return
-      }
-
-      router.refresh()
+  // Handle successful login by redirecting
+  useEffect(() => {
+    if (state?.success) {
       router.push("/")
-    } catch (err) {
-      setError("로그인 중 오류가 발생했습니다. 다시 시도해주세요.")
-      setIsLoading(false)
     }
-  }
+  }, [state, router])
 
   return (
     <Card className="w-full max-w-md bg-white/10 backdrop-blur-md border-white/20">
@@ -56,10 +50,10 @@ export default function LoginForm() {
         <CardDescription className="text-gray-300">계정에 로그인하여 투두리스트를 관리하세요</CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && (
+        <form action={formAction} className="space-y-4">
+          {state?.error && (
             <div className="bg-red-500/10 border border-red-500/50 text-red-300 px-4 py-3 rounded-lg text-sm">
-              {error}
+              {state.error}
             </div>
           )}
 
@@ -96,16 +90,7 @@ export default function LoginForm() {
             </div>
           </div>
 
-          <Button type="submit" disabled={isLoading} className="w-full bg-purple-600 hover:bg-purple-700 text-white">
-            {isLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                로그인 중...
-              </>
-            ) : (
-              "로그인"
-            )}
-          </Button>
+          <SubmitButton />
 
           <div className="text-center text-sm text-gray-300">
             계정이 없으신가요?{" "}

@@ -1,8 +1,8 @@
-import { updateSession } from "@/lib/supabase/middleware"
 import type { NextRequest } from "next/server"
 
 export async function middleware(request: NextRequest) {
-  return await updateSession(request)
+  // 아무것도 하지 않고 요청을 그대로 통과시킴
+  return
 }
 
 export const config = {

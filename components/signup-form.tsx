@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Loader2, Mail, Lock } from "lucide-react"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
+import Image from "next/image"
 
 export default function SignUpForm() {
   const [isLoading, setIsLoading] = useState(false)
@@ -54,6 +55,9 @@ export default function SignUpForm() {
   return (
     <Card className="w-full max-w-md bg-white/10 backdrop-blur-md border-white/20">
       <CardHeader className="space-y-1 text-center">
+        <div className="flex justify-center mb-4">
+          <Image src="/icon-192x192.png" alt="GameTodo Logo" width={64} height={64} className="rounded-lg" />
+        </div>
         <CardTitle className="text-2xl font-bold text-white">회원가입</CardTitle>
         <CardDescription className="text-gray-300">새 계정을 만들어 투두리스트를 시작하세요</CardDescription>
       </CardHeader>
@@ -106,7 +110,7 @@ export default function SignUpForm() {
             <p className="text-xs text-gray-400">최소 6자 이상 입력해주세요</p>
           </div>
 
-          <Button type="submit" disabled={isLoading} className="w-full bg-green-600 hover:bg-green-700 text-white">
+          <Button type="submit" disabled={isLoading} className="w-full bg-purple-600 hover:bg-purple-700 text-white">
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -119,7 +123,7 @@ export default function SignUpForm() {
 
           <div className="text-center text-sm text-gray-300">
             이미 계정이 있으신가요?{" "}
-            <Link href="/auth/login" className="text-blue-400 hover:text-blue-300 underline">
+            <Link href="/auth/login" className="text-purple-400 hover:text-purple-300 underline">
               로그인
             </Link>
           </div>
